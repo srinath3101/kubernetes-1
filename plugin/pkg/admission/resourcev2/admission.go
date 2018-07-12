@@ -23,9 +23,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apiserver/pkg/admission"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/kubernetes/pkg/apis/core"
 
 	"k8s.io/apimachinery/pkg/util/uuid"
+
+	"github.com/golang/glog"
 )
 
 // Register is called by the apiserver to register the plugin factory.
@@ -49,7 +52,6 @@ func newResourceV2() *plugin {
 }
 
 func (p *plugin) Admit(attributes admission.Attributes) error {
-	// Ignore all calls to subresources or resources other than pods.
 	if len(attributes.GetSubresource()) != 0 || attributes.GetResource().GroupResource() != core.Resource("pods") {
 		return nil
 	}
@@ -60,7 +62,7 @@ func (p *plugin) Admit(attributes admission.Attributes) error {
 	}
 
 	for i, container := range pod.Spec.InitContainers {
-		for resourceName, val := range container.Resources.Limits {
+		for resourceName, val := range FillRequests(container).Resources.Limits {
 			if resourceName != core.ResourceName("nvidia.com/gpu") {
 				continue
 			}
@@ -74,7 +76,7 @@ func (p *plugin) Admit(attributes admission.Attributes) error {
 	}
 
 	for i, container := range pod.Spec.Containers {
-		for resourceName, val := range container.Resources.Limits {
+		for resourceName, val := range FillRequests(container).Resources.Limits {
 
 			if resourceName != core.ResourceName("nvidia.com/gpu") {
 				continue
@@ -89,6 +91,24 @@ func (p *plugin) Admit(attributes admission.Attributes) error {
 	}
 
 	return nil
+}
+
+// If requests are specified, but limits are not, default limits to requests
+// Changing the pod structure 
+func FillRequests(ctr core.Container) core.Container {
+	// set requests to limits if requests are not specified, but limits are
+	if ctr.Resources.Requests == nil {
+		return ctr
+	}
+
+	requests := make(core.ResourceList)
+	for k, v := range ctr.Resources.Requests {
+		requests[k] = v
+	}
+
+	ctr.Resources.Limits = requests
+
+	return ctr
 }
 
 func newExtendedResource(rName core.ResourceName, val resource.Quantity) (string, core.PodExtendedResource) {
