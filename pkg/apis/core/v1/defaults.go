@@ -134,14 +134,17 @@ func SetDefaults_Pod(obj *v1.Pod) {
 	// because we only want this defaulting semantic to take place on a v1.Pod and not a v1.PodTemplate
 	for i := range obj.Spec.Containers {
 		// set requests to limits if requests are not specified, but limits are
-		if obj.Spec.Containers[i].Resources.Limits != nil {
-			if obj.Spec.Containers[i].Resources.Requests == nil {
-				obj.Spec.Containers[i].Resources.Requests = make(v1.ResourceList)
-			}
-			for key, value := range obj.Spec.Containers[i].Resources.Limits {
-				if _, exists := obj.Spec.Containers[i].Resources.Requests[key]; !exists {
-					obj.Spec.Containers[i].Resources.Requests[key] = *(value.Copy())
-				}
+		if obj.Spec.Containers[i].Resources.Limits == nil {
+			continue
+		}
+
+		if obj.Spec.Containers[i].Resources.Requests == nil {
+			obj.Spec.Containers[i].Resources.Requests = make(v1.ResourceList)
+		}
+
+		for key, value := range obj.Spec.Containers[i].Resources.Limits {
+			if _, exists := obj.Spec.Containers[i].Resources.Requests[key]; !exists {
+				obj.Spec.Containers[i].Resources.Requests[key] = *(value.Copy())
 			}
 		}
 	}
