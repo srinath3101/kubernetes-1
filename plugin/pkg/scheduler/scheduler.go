@@ -35,6 +35,7 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/core"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/metrics"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/schedulercache"
+	"k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/plugin/pkg/scheduler/util"
 
 	"github.com/golang/glog"
@@ -362,12 +363,21 @@ func (sched *Scheduler) bindVolumesWorker() {
 
 // assume signals to the cache that a pod is already in the cache, so that binding can be asynchronous.
 // assume modifies `assumed`.
-func (sched *Scheduler) assume(assumed *v1.Pod, host string) error {
+func (sched *Scheduler) assume(assumed *v1.Pod, host string, res v1.ExtendedResourceBinding) error {
 	// Optimistically assume that the binding will succeed and send it to apiserver
 	// in the background.
 	// If the binding fails, scheduler will release resources allocated to assumed pod
 	// immediately.
 	assumed.Spec.NodeName = host
+	for resName, assigned := range res {
+		i, err := helper.PodExtendedResource(resName, assumed.Spec.ExtendedResources)
+		if err != nil {
+			return err
+		}
+
+		assumed.Spec.ExtendedResources[i].Assigned = assigned.Resources
+	}
+
 	if err := sched.config.SchedulerCache.AssumePod(assumed); err != nil {
 		glog.Errorf("scheduler cache AssumePod failed: %v", err)
 
@@ -475,7 +485,7 @@ func (sched *Scheduler) scheduleOne() {
 	}
 
 	// assume modifies `assumedPod` by setting NodeName=suggestedHost
-	err = sched.assume(assumedPod, suggestedHost)
+	err = sched.assume(assumedPod, suggestedHost, res)
 	if err != nil {
 		return
 	}

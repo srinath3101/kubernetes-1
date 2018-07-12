@@ -84,6 +84,8 @@ func (m *ExtendedResourceCacheManagerImpl) SetAvailable(av v1.ExtendedResourceMa
 // Adds the pod resources to requests
 // Remove the pod resources from available
 func (m *ExtendedResourceCacheManagerImpl) AddPod(pod *v1.Pod) {
+	glog.V(5).Infof("Adding pod: %v with extended Resources", pod.Name, pod.Spec.ExtendedResources)
+
 	for _, pRes := range pod.Spec.ExtendedResources {
 		resourceName, err := v1helper.PodExtendedResourceName(&pRes)
 		if err != nil {
